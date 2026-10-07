@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block head %}<h1>Attendance report</h1><p>Late counts as attended. Red rows are below {{ threshold }}%.</p>{% endblock %}
+{% block content %}
+<div class="panel">
+  <form method="get" class="filter">
+    <select name="class_name" aria-label="Class">
+      <option value="">All classes</option>
+      {% for c in classes %}<option value="{{ c }}" {{ 'selected' if c == selected }}>{{ c }}</option>{% endfor %}
+    </select>
+    <button class="btn ghost small">Filter</button>
+    <a class="btn small" href="{{ url_for('reports_csv', class_name=selected or '') }}">Download CSV for Excel</a>
+  </form>
+</div>
+<div class="panel">
+  {% if stats %}
+  <div class="table-wrap"><table>
+    <tr><th>Roll no</th><th>Name</th><th>Class</th><th class="num">Sessions</th><th class="num">Present</th>
+        <th class="num">Late</th><th class="num">Absent</th><th>Attendance</th><th>To reach {{ threshold }}%</th></tr>
+    {% for s in stats %}
+    <tr class="{{ 'risk' if s.at_risk }}">
+      <td>{{ s.roll_no }}</td><td><a href="{{ url_for('student_detail', sid=s.id) }}">{{ s.name }}</a></td><td>{{ s.class_name }}</td>
+      <td class="num">{{ s.total }}</td><td class="num">{{ s.present }}</td><td class="num">{{ s.late }}</td><td class="num">{{ s.absent }}</td>
+      <td>{% if s.total %}<div class="bar"><div class="track"><i class="{{ 'low' if s.at_risk }}" style="width:{{ s.percent }}%"></i></div><b>{{ s.percent }}%</b></div>{% else %}-{% endif %}</td>
+      <td>{% if s.needed > 0 %}Next <b>{{ s.needed }}</b> in a row{% elif s.total %}Safe{% else %}-{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<p class="empty">No students yet.</p>{% endif %}
+</div>
+{% endblock %}

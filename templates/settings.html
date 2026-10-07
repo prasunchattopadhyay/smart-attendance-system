@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block head %}<h1>Settings</h1><p>Changes apply to the next session.</p>{% endblock %}
+{% block content %}
+<div class="panel">
+  <form method="post">
+    <label for="late">Minutes before a student counts as Late</label>
+    <input id="late" name="late_minutes" type="number" min="1" max="180" value="{{ s.late_minutes }}" style="max-width:140px">
+    <label for="thr">Minimum attendance percentage</label>
+    <input id="thr" name="threshold" type="number" min="50" max="95" value="{{ s.threshold }}" style="max-width:140px">
+    <p class="hint">Students below this are flagged in red and get a warning message.</p>
+    <label for="tol">Face match strictness (0.35 strict to 0.65 relaxed)</label>
+    <input id="tol" name="tolerance" type="number" step="0.01" min="0.35" max="0.65" value="{{ s.tolerance }}" style="max-width:140px">
+    <p class="hint">If the camera does not recognise a registered student, raise it slightly. If it confuses two students, lower it.</p>
+    <label class="check"><input type="checkbox" name="require_blink" {{ 'checked' if s.require_blink == '1' }}>
+      <span>Require a blink before marking attendance<br><span class="hint">Stops a photo or a phone screen from being used as someone else.</span></span></label>
+    <div class="actions"><button class="btn">Save settings</button></div>
+  </form>
+</div>
+{% endblock %}

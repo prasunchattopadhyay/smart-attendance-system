@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ s.subject }}{% endblock %}
+{% block head %}<h1>{{ s.subject }}</h1><p>Class {{ s.class_name }}, started {{ s.start_time }}. {% if blink %}Each student looks at the camera and blinks once.{% else %}Each student only needs to face the camera.{% endif %}</p>{% endblock %}
+{% block content %}
+<div class="row cam">
+  <div class="panel">
+    <div class="stage">
+      <canvas id="view"></canvas>
+      <div class="cover" id="cover"><div><b id="cover-title">Starting the camera</b><br><span id="cover-text">Allow camera access when your browser asks.</span></div></div>
+    </div>
+    <div class="coach" id="coach" aria-live="polite"></div>
+    <ul class="feed" id="feed"></ul>
+    <div class="actions">
+      <form method="post" action="{{ url_for('session_end', sid=s.id) }}" data-confirm="End this session? Everyone who was not seen will be marked Absent.">
+        <button class="btn danger">End session</button></form>
+    </div>
+  </div>
+  <div>
+    <div class="panel"><h3>Marked (<span id="n-marked">0</span>)</h3>
+      <div class="scroll"><table id="tbl"><tr><td class="empty">Nobody yet.</td></tr></table></div></div>
+    <div class="panel"><h3>Not seen yet (<span id="n-pending">0</span>)</h3>
+      <div class="names" id="pending"></div></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SID = {{ s.id }};
+const COLORS = { marked: "#5fd29a", already: "#5fd29a", blink: "#f0b44a", unknown: "#f08a80" };
+const view = document.getElementById("view"), vctx = view.getContext("2d");
+const cap = document.createElement("canvas"), cctx = cap.getContext("2d");
+const video = document.createElement("video"); video.muted = true; video.playsInline = true;
+const $ = id => document.getElementById(id);
+let faces = [], busy = false, announced = new Set(), failures = 0;
+
+function paint() {
+  if (video.readyState >= 2) {
+    view.width = video.videoWidth; view.height = video.videoHeight;
+    vctx.drawImage(video, 0, 0);
+    const fs = Math.max(14, Math.round(view.width / 42));
+    vctx.font = "600 " + fs + "px Segoe UI, sans-serif"; vctx.textBaseline = "top";
+    for (const f of faces) {
+      const [l, t, r, b] = f.box, x = l * view.width, y = t * view.height, w = (r - l) * view.width, h = (b - t) * view.height;
+      const c = COLORS[f.state] || "#fff";
+      vctx.lineWidth = 4; vctx.strokeStyle = c; vctx.strokeRect(x, y, w, h);
+      const label = f.label + ": " + f.text, tw = vctx.measureText(label).width + 14;
+      vctx.fillStyle = c; vctx.fillRect(x, Math.max(0, y - fs - 10), tw, fs + 10);
+      vctx.fillStyle = "#0a120f"; vctx.fillText(label, x + 7, Math.max(0, y - fs - 10) + 5);
+    }
+  }
+  requestAnimationFrame(paint);
+}
+async function tick() {
+  if (busy || video.readyState < 2) return;
+  busy = true;
+  try {
+    cap.width = 480; cap.height = Math.round(480 * video.videoHeight / video.videoWidth);
+    cctx.drawImage(video, 0, 0, cap.width, cap.height);
+    const r = await fetch("/api/recognize/" + SID, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: cap.toDataURL("image/jpeg", 0.7) }) });
+    if (r.status === 401) { location.href = "{{ url_for('login') }}"; return; }
+    const d = await r.json();
+    if (d.error) { $("coach").textContent = d.error; faces = []; }
+    else {
+      faces = d.faces; failures = 0;
+      for (const f of faces) if (f.state === "marked" && !announced.has(f.label)) {
+        announced.add(f.label);
+        const li = document.createElement("li"); li.textContent = new Date().toLocaleTimeString() + "  " + f.label + " - " + f.text;
+        $("feed").prepend(li); refreshLists();
+      }
+      const first = faces.find(f => f.state === "blink");
+      $("coach").textContent = faces.length === 0 ? "Waiting for a face..." : first ? first.label + ", please blink once." : "";
+    }
+  } catch (e) { if (++failures > 3) $("coach").textContent = "Lost connection to the app. Is it still running?"; }
+  busy = false;
+}
+async function refreshLists() {
+  try {
+    const d = await (await fetch("{{ url_for('session_status', sid=s.id) }}")).json();
+    $("n-marked").textContent = d.marked.length; $("n-pending").textContent = d.pending.length;
+    const tb = $("tbl"); tb.innerHTML = "";
+    if (!d.marked.length) { tb.innerHTML = '<tr><td class="empty">Nobody yet.</td></tr>'; }
+    for (const m of d.marked) {
+      const tr = tb.insertRow();
+      tr.insertCell().textContent = m.name;
+      const st = tr.insertCell(); const p = document.createElement("span"); p.className = "pill " + m.status; p.textContent = m.status; st.appendChild(p);
+      tr.insertCell().textContent = m.time;
+    }
+    const pn = $("pending"); pn.innerHTML = "";
+    for (const p of d.pending) { const s = document.createElement("span"); s.textContent = p.name; pn.appendChild(s); }
+  } catch (e) {}
+}
+(async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }, audio: false });
+    video.srcObject = stream; await video.play();
+    $("cover").classList.add("hide"); paint(); setInterval(tick, 120);
+  } catch (err) {
+    $("cover-title").textContent = "The camera could not start";
+    $("cover-text").textContent = "Allow camera access in the address bar, close other apps using the webcam, then reload. Open the app at http://127.0.0.1:5000.";
+  }
+  refreshLists(); setInterval(refreshLists, 3000);
+})();
+</script>
+{% endblock %}

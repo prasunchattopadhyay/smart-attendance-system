@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Register student{% endblock %}
+{% block head %}<h1>Register a student</h1><p>Takes about 10 seconds. Only a numeric face signature is saved, never the photos.</p>{% endblock %}
+{% block content %}
+<div class="row cam">
+  <div class="panel">
+    <div class="stage">
+      <canvas id="view"></canvas>
+      <div class="cover" id="cover"><div><b id="cover-title">Camera is off</b><br><span id="cover-text">Fill in the details, then press Start camera.</span></div></div>
+    </div>
+    <div class="coach" id="coach" aria-live="polite"></div>
+    <div class="meter"><i id="meter"></i></div>
+  </div>
+  <div class="panel">
+    <h3>Student details</h3>
+    <form id="form" autocomplete="off">
+      <label for="name">Full name</label>
+      <input id="name" type="text" required>
+      <label for="roll">Roll number</label>
+      <input id="roll" type="text" required>
+      <label for="cls">Class</label>
+      <input id="cls" type="text" list="classes" placeholder="For example CSE-A" required>
+      <datalist id="classes">{% for c in classes %}<option value="{{ c }}">{% endfor %}</datalist>
+      <p class="hint">The student's login is their roll number for both username and password. They can change it later.</p>
+      <div class="actions"><button class="btn" id="start" type="submit">Start camera</button>
+        <button class="btn ghost" id="cancel" type="button" hidden>Cancel</button></div>
+    </form>
+    <div id="result" style="margin-top:16px"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const NEED = 12;
+const STEPS = [[0, "Look straight at the camera"], [4, "Slowly turn your head a little to the left"],
+               [7, "Now a little to the right"], [10, "Tilt your chin up slightly"]];
+const view = document.getElementById("view"), vctx = view.getContext("2d");
+const cap = document.createElement("canvas"), cctx = cap.getContext("2d");
+const video = document.createElement("video"); video.muted = true; video.playsInline = true;
+let stream = null, timer = null, frames = [], busy = false, lastBox = null, running = false, raf = 0;
+const $ = id => document.getElementById(id);
+
+function coachText(n, faces) {
+  if (faces === 0) return "No face found. Move closer and face the light.";
+  if (faces > 1) return "More than one face. Only the student should be in view.";
+  let t = STEPS[0][1]; for (const [from, text] of STEPS) if (n >= from) t = text; return t;
+}
+function paint() {
+  if (!running) return;
+  if (video.readyState >= 2) {
+    view.width = video.videoWidth; view.height = video.videoHeight;
+    vctx.drawImage(video, 0, 0);
+    if (lastBox) { const [l, t, r, b] = lastBox; vctx.lineWidth = 4; vctx.strokeStyle = "#5fd29a";
+      vctx.strokeRect(l * view.width, t * view.height, (r - l) * view.width, (b - t) * view.height); }
+  }
+  raf = requestAnimationFrame(paint);
+}
+async function tick() {
+  if (busy || video.readyState < 2) return;
+  busy = true;
+  try {
+    cap.width = 640; cap.height = Math.round(640 * video.videoHeight / video.videoWidth);
+    cctx.drawImage(video, 0, 0, cap.width, cap.height);
+    const img = cap.toDataURL("image/jpeg", 0.85);
+    const r = await fetch("{{ url_for('api_face_check') }}", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: img }) });
+    if (r.status === 401) { location.href = "{{ url_for('login') }}"; return; }
+    const d = await r.json();
+    lastBox = d.box;
+    if (d.faces === 1) { frames.push(img); $("meter").style.width = (frames.length / NEED * 100) + "%"; }
+    $("coach").textContent = frames.length >= NEED ? "Saving..." : coachText(frames.length, d.faces) + "  (" + frames.length + "/" + NEED + ")";
+    if (frames.length >= NEED) { stop(false); await save(); }
+  } catch (e) { $("coach").textContent = "Lost connection to the app. Is it still running?"; }
+  busy = false;
+}
+function stop(resetUi) {
+  running = false; clearInterval(timer); cancelAnimationFrame(raf);
+  if (stream) stream.getTracks().forEach(t => t.stop()); stream = null;
+  $("cover").classList.remove("hide"); lastBox = null;
+  if (resetUi) { $("coach").textContent = ""; $("meter").style.width = "0"; $("start").hidden = false; $("cancel").hidden = true; }
+}
+async function save() {
+  const body = { name: $("name").value, roll_no: $("roll").value, class_name: $("cls").value, images: frames };
+  const r = await fetch("{{ url_for('api_register') }}", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({ error: "The app did not answer. Try again." }));
+  if (d.ok) {
+    $("result").innerHTML = '<div class="flash ok"></div><div class="actions"><a class="btn" href="{{ url_for('register_page') }}">Register another</a><a class="btn ghost" href="{{ url_for('students') }}">See all students</a></div>';
+    $("result").firstChild.textContent = d.message;
+    $("coach").textContent = "Done."; $("cover-title").textContent = "Registered"; $("cover-text").textContent = "";
+    $("start").hidden = true; $("cancel").hidden = true;
+  } else {
+    $("result").innerHTML = '<div class="flash error"></div>'; $("result").firstChild.textContent = d.error || "Something went wrong.";
+    $("coach").textContent = ""; $("meter").style.width = "0"; $("start").hidden = false; $("start").textContent = "Try again"; $("cancel").hidden = true;
+    $("cover-title").textContent = "Not saved"; $("cover-text").textContent = "Fix the problem shown on the right and try again.";
+  }
+}
+$("form").addEventListener("submit", async e => {
+  e.preventDefault(); $("result").innerHTML = ""; frames = []; $("meter").style.width = "0";
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }, audio: false });
+  } catch (err) {
+    $("result").innerHTML = '<div class="flash error"></div>';
+    $("result").firstChild.textContent = "The camera could not start. Allow camera access in the address bar and close other apps that use the webcam.";
+    return;
+  }
+  video.srcObject = stream; await video.play();
+  $("cover").classList.add("hide"); $("start").hidden = true; $("cancel").hidden = false;
+  running = true; paint(); timer = setInterval(tick, 450);
+});
+$("cancel").addEventListener("click", () => stop(true));
+window.addEventListener("beforeunload", () => stop(false));
+</script>
+{% endblock %}

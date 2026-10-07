@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Unknown faces{% endblock %}
+{% block head %}<h1>Unknown faces</h1><p>People the camera saw during a session who are not registered. One snapshot every 10 seconds at most.</p>{% endblock %}
+{% block content %}
+<div class="panel">
+  {% if rows %}
+  <div class="faces">
+    {% for r in rows %}
+    <figure style="margin:0"><img src="{{ url_for('unknown_file', filename=r.image_path) }}" alt="Unregistered face seen in session {{ r.session_id }}" loading="lazy">
+      <div>Session {{ r.session_id }}<br>{{ r.time_seen }}</div></figure>
+    {% endfor %}
+  </div>
+  {% else %}<p class="empty">No unknown faces so far.</p>{% endif %}
+</div>
+{% endblock %}

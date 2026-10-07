@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Sessions{% endblock %}
+{% block head %}<h1>Sessions</h1><p>Every class you have taken attendance for.</p>{% endblock %}
+{% block content %}
+<div class="panel">
+  {% if sessions %}
+  <div class="table-wrap"><table>
+    <tr><th>Date</th><th>Subject</th><th>Class</th><th>Time</th><th class="num">Attended</th><th>By</th><th></th></tr>
+    {% for s in sessions %}
+    <tr><td>{{ s.date }}</td><td>{{ s.subject }}</td><td>{{ s.class_name }}</td>
+      <td>{{ s.start_time[:5] }} to {{ s.end_time[:5] if s.end_time else 'running' }}</td>
+      <td class="num">{{ s.att or 0 }} of {{ s.n }}</td><td>{{ s.created_by or '' }}</td>
+      <td>{% if s.end_time %}<a href="{{ url_for('session_summary', sid=s.id) }}">View</a>
+          {% else %}<a href="{{ url_for('session_live', sid=s.id) }}">Open</a>{% endif %}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<p class="empty">No sessions yet. <a href="{{ url_for('session_start') }}">Take attendance</a> to start one.</p>{% endif %}
+</div>
+{% endblock %}

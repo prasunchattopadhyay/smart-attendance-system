@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Smart Attendance{% endblock %} - Smart Attendance</title>
+<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f3b33'/%3E%3Cpath d='M8 17l5 5 11-12' stroke='%23f2b01e' stroke-width='4' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand">Smart Attendance<small>Face recognition with blink check</small></div>
+    {% macro link(endpoint, label, icon, match=None) %}
+      <a class="nav-link {{ 'on' if ep == endpoint or (match and ep in match) }}" href="{{ url_for(endpoint) }}"><span aria-hidden="true">{{ icon }}</span>{{ label }}</a>
+    {% endmacro %}
+    {% if me.role == 'student' %}
+      {{ link('my_attendance', 'My attendance', '📊') }}
+    {% else %}
+      {{ link('dashboard', 'Dashboard', '🏠') }}
+      {{ link('session_start', 'Take attendance', '📷', ['session_live']) }}
+      <div class="nav-group">People</div>
+      {{ link('students', 'Students', '🎓', ['student_detail']) }}
+      {{ link('register_page', 'Register student', '➕') }}
+      <div class="nav-group">Records</div>
+      {{ link('sessions_list', 'Sessions', '🗓', ['session_summary']) }}
+      {{ link('reports_page', 'Reports', '📄') }}
+      {{ link('alerts', 'Low attendance alerts', '⚠️') }}
+      {{ link('unknown_page', 'Unknown faces', '🕵️') }}
+      {% if me.role == 'admin' %}
+        <div class="nav-group">Admin</div>
+        {{ link('users', 'Accounts', '🔑') }}
+        {{ link('settings', 'Settings', '⚙️') }}
+      {% endif %}
+    {% endif %}
+    <div class="side-foot">
+      <b>{{ me.name }}</b>
+      {{ me.role|capitalize }}<br>
+      <a href="{{ url_for('change_password') }}">Change password</a> &nbsp;
+      <a href="{{ url_for('logout') }}">Log out</a>
+    </div>
+  </aside>
+  <main class="main">
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, m in msgs %}<div class="flash {{ cat }}" role="status">{{ m }}</div>{% endfor %}
+    {% endwith %}
+    <div class="top">
+      <div>{% block head %}<h1>{{ self.title() }}</h1>{% endblock %}</div>
+      <button class="theme-btn" type="button" data-theme-toggle>Dark / light</button>
+    </div>
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

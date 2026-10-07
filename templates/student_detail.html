@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% set st = d.stat %}
+{% block title %}{{ 'My attendance' if own else st.name }}{% endblock %}
+{% block head %}<h1>{{ 'My attendance' if own else st.name }}</h1><p>{% if own %}{{ st.name }}, roll {{ st.roll_no }}{% else %}Roll {{ st.roll_no }}{% endif %}, class {{ st.class_name }}.</p>{% endblock %}
+{% block content %}
+<div class="panel hero">
+  <div class="ring {{ 'low' if st.at_risk }}" style="--pct: {{ st.percent }}"><div><span>{{ st.percent }}%<small>{{ st.present + st.late }} of {{ st.total }} classes</small></span></div></div>
+  <div>
+    {% if st.total == 0 %}
+      <h2>No classes recorded yet</h2><p>Your attendance will appear here after your first finished class.</p>
+    {% elif st.at_risk %}
+      <h2>Below the {{ d.threshold }}% minimum</h2>
+      <p>{{ 'You need' if own else 'They need' }} to attend the next <b>{{ st.needed }}</b> classes in a row, without missing any, to reach {{ d.threshold }}%.</p>
+    {% else %}
+      <h2>You are above {{ d.threshold }}%</h2>
+      <p>{{ 'Keep it up. ' if own }}{{ st.present }} present, {{ st.late }} late, {{ st.absent }} absent.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row two">
+  <div class="panel"><h3>By subject</h3>
+    {% if d.subjects %}
+    <table>
+      <tr><th>Subject</th><th class="num">Classes</th><th>Attendance</th></tr>
+      {% for s in d.subjects %}
+      <tr class="{{ 'risk' if s.at_risk }}"><td>{{ s.subject }}</td><td class="num">{{ s.attended }} of {{ s.total }}</td>
+        <td><div class="bar"><div class="track"><i class="{{ 'low' if s.at_risk }}" style="width:{{ s.percent }}%"></i></div><b>{{ s.percent }}%</b></div></td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">Nothing yet.</p>{% endif %}
+  </div>
+  <div class="panel"><h3>Recent classes</h3>
+    {% if d.history %}
+    <div class="scroll"><table>
+      <tr><th>Date</th><th>Subject</th><th>Status</th></tr>
+      {% for h in d.history %}<tr><td>{{ h.date }}</td><td>{{ h.subject }}</td><td><span class="pill {{ h.status }}">{{ h.status }}</span></td></tr>{% endfor %}
+    </table></div>
+    {% else %}<p class="empty">Nothing yet.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

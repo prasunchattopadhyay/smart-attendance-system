@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Low attendance alerts{% endblock %}
+{% block head %}<h1>Low attendance alerts</h1><p>Students below {{ threshold }}%, with a ready-to-send warning that says exactly how many classes they must attend.</p>{% endblock %}
+{% block content %}
+<div class="panel">
+  {% for i in items %}
+  <div class="alert-item">
+    <div>
+      <a href="{{ url_for('student_detail', sid=i.s.id) }}"><b>{{ i.s.name }}</b></a>
+      <div class="hint">Roll {{ i.s.roll_no }}, {{ i.s.class_name }}</div>
+      <div class="big" style="margin-top:8px">{{ i.s.percent }}%</div>
+      <div class="hint">{{ i.s.present + i.s.late }} of {{ i.s.total }} classes</div>
+    </div>
+    <div>
+      <textarea id="m{{ i.s.id }}" readonly aria-label="Warning for {{ i.s.name }}">{{ i.msg }}</textarea>
+      <div class="actions"><button class="btn small" type="button" data-copy="m{{ i.s.id }}">Copy message</button>
+        <a class="btn ghost small" href="{{ i.mailto }}">Open in email app</a></div>
+    </div>
+  </div>
+  {% else %}
+  <p class="empty">Nobody is below {{ threshold }}%. Warnings will appear here when someone drops under.</p>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Session summary{% endblock %}
+{% block head %}<h1>{{ s.subject }}</h1><p>Class {{ s.class_name }} on {{ s.date }}, {{ s.start_time }} to {{ s.end_time or 'still running' }}.</p>{% endblock %}
+{% block content %}
+{% if not s.end_time %}<div class="flash warn">This session is still running. <a href="{{ url_for('session_live', sid=s.id) }}">Go back to the camera</a>.</div>{% endif %}
+<div class="panel strip" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div><b style="color:var(--present)">{{ counts.Present }}</b><span>Present</span></div>
+  <div><b style="color:var(--late)">{{ counts.Late }}</b><span>Late</span></div>
+  <div><b style="color:var(--absent)">{{ counts.Absent }}</b><span>Absent</span></div>
+</div>
+<div class="panel">
+  <h3>Attendance list</h3>
+  <p class="hint" style="margin:-6px 0 12px">Camera got it wrong? Change a student's status here.</p>
+  {% if rows %}
+  <div class="table-wrap"><table>
+    <tr><th>Roll no</th><th>Name</th><th>Status</th><th>Time</th><th>Correct it</th></tr>
+    {% for r in rows %}
+    <tr><td>{{ r.roll_no }}</td><td>{{ r.name }}</td>
+      <td><span class="pill {{ r.status }}">{{ r.status }}</span></td><td>{{ r.time_marked }}</td>
+      <td><form class="inline-form" method="post" action="{{ url_for('session_set_status', sid=s.id) }}">
+        <input type="hidden" name="student_id" value="{{ r.student_id }}">
+        <select name="status" aria-label="New status for {{ r.name }}">
+          {% for st in ['Present','Late','Absent'] %}<option {{ 'selected' if st == r.status }}>{{ st }}</option>{% endfor %}
+        </select><button class="btn ghost small">Save</button></form></td></tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<p class="empty">Nobody has been marked in this session.</p>{% endif %}
+  <div class="actions"><a class="btn ghost" href="{{ url_for('sessions_list') }}">All sessions</a>
+    <a class="btn ghost" href="{{ url_for('reports_page') }}">Reports</a></div>
+</div>
+{% endblock %}

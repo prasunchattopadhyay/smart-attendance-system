@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Accounts{% endblock %}
+{% block head %}<h1>Accounts</h1><p>Teachers and admins are created here. Student accounts are made automatically when a student is registered.</p>{% endblock %}
+{% block content %}
+<div class="panel">
+  <h3>Add a teacher or admin</h3>
+  <form method="post">
+    <label for="fn">Full name</label><input id="fn" name="full_name" type="text">
+    <label for="un">Username</label><input id="un" name="username" type="text" required>
+    <label for="pw">Password (at least 6 characters)</label><input id="pw" name="password" type="password" required>
+    <label for="rl">Role</label>
+    <select id="rl" name="role"><option value="teacher">Teacher</option><option value="admin">Admin</option></select>
+    <div class="actions"><button class="btn">Create account</button></div>
+  </form>
+</div>
+<div class="panel">
+  <h3>All accounts</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Username</th><th>Name</th><th>Role</th><th>New password</th><th></th></tr>
+    {% for u in users %}
+    <tr><td>{{ u.username }}</td><td>{{ u.full_name }}</td><td><span class="pill role">{{ u.role }}</span></td>
+      <td><form class="inline-form" method="post" action="{{ url_for('user_reset', uid=u.id) }}">
+        <input name="password" type="password" placeholder="New password" aria-label="New password for {{ u.username }}">
+        <button class="btn ghost small">Set</button></form></td>
+      <td>{% if u.student_id is none %}<form method="post" action="{{ url_for('user_delete', uid=u.id) }}" data-confirm="Delete account {{ u.username }}?">
+        <button class="btn danger small">Delete</button></form>{% endif %}</td></tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% endblock %}

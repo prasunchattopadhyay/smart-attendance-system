@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Take attendance{% endblock %}
+{% block head %}<h1>Take attendance</h1><p>Choose the class and subject, then point the webcam at the students.</p>{% endblock %}
+{% block content %}
+<div class="panel">
+  {% if not classes %}
+    <p class="empty">No students are registered yet. <a href="{{ url_for('register_page') }}">Register students</a> first.</p>
+  {% else %}
+  <form method="post">
+    <label for="cls">Class</label>
+    <select id="cls" name="class_name" required>
+      {% for c in classes %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+    </select>
+    <label for="subj">Subject</label>
+    <input id="subj" name="subject" type="text" placeholder="For example Data Structures" required>
+    <p class="hint" style="margin-top:14px">
+      Students seen in the first {{ late }} minutes are marked <b>Present</b>, later ones <b>Late</b>.
+      Anyone not seen when you end the session becomes <b>Absent</b>.
+      {% if blink %}Each student must <b>blink once</b> so a photo cannot be used.{% else %}The blink check is turned off in Settings.{% endif %}
+    </p>
+    <div class="actions"><button class="btn">Start session</button></div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

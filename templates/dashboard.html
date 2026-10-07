@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block head %}<h1>Welcome back, {{ me.name }}</h1><p>Attendance minimum is {{ threshold }}%.</p>{% endblock %}
+{% block content %}
+{% if default_admin %}
+<div class="flash warn">You are still using the default admin password. <a href="{{ url_for('change_password') }}">Change it now</a>.</div>
+{% endif %}
+
+{% if active %}
+<div class="panel" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+  <div><h3>{{ active.subject }} is in progress</h3>
+    <span class="hint">Class {{ active.class_name }}, started {{ active.start_time }}</span></div>
+  <a class="btn" href="{{ url_for('session_live', sid=active.id) }}">Open live session</a>
+</div>
+{% endif %}
+
+<div class="panel strip">
+  <div><b>{{ n_students }}</b><span>Students registered</span></div>
+  <div><b>{{ n_sessions }}</b><span>Sessions held</span></div>
+  <div><b>{{ overall }}%</b><span>Average attendance</span></div>
+  <div class="{{ 'bad' if n_at_risk }}"><b>{{ n_at_risk }}</b><span>Below {{ threshold }}%</span></div>
+</div>
+
+<div class="row wide">
+  <div class="panel"><h3>Attendance rate, last sessions</h3>
+    <div class="chart-box"><canvas id="c-trend"></canvas></div><p class="empty" id="e-trend" hidden>Charts appear after your first finished session.</p></div>
+  <div class="panel"><h3>All records</h3>
+    <div class="chart-box"><canvas id="c-status"></canvas></div><p class="empty" id="e-status" hidden>No records yet.</p></div>
+</div>
+<div class="row two">
+  <div class="panel"><h3>Average attendance by class</h3>
+    <div class="chart-box"><canvas id="c-class"></canvas></div><p class="empty" id="e-class" hidden>No students yet.</p></div>
+  <div class="panel"><h3>Which weekdays have the most absences</h3>
+    <div class="chart-box"><canvas id="c-day"></canvas></div><p class="empty" id="e-day" hidden>Needs a few finished sessions.</p></div>
+</div>
+
+<div class="row two">
+  <div class="panel"><h3>Students who need attention</h3>
+    {% if at_risk %}
+    <div class="table-wrap"><table>
+      <tr><th>Name</th><th class="num">Attendance</th><th>To get back</th></tr>
+      {% for s in at_risk %}
+      <tr class="risk"><td><a href="{{ url_for('student_detail', sid=s.id) }}">{{ s.name }}</a><br><span class="hint">{{ s.class_name }}</span></td>
+        <td class="num"><b>{{ s.percent }}%</b></td><td>Next <b>{{ s.needed }}</b> classes in a row</td></tr>
+      {% endfor %}
+    </table></div>
+    <div class="actions"><a class="btn ghost small" href="{{ url_for('alerts') }}">Write warnings</a></div>
+    {% else %}<p class="empty">Everyone is at or above {{ threshold }}%.</p>{% endif %}
+  </div>
+  <div class="panel"><h3>Recent sessions</h3>
+    {% if recent %}
+    <div class="table-wrap"><table>
+      <tr><th>Date</th><th>Subject</th><th>Class</th><th></th></tr>
+      {% for r in recent %}<tr><td>{{ r.date }}</td><td>{{ r.subject }}</td><td>{{ r.class_name }}</td>
+        <td><a href="{{ url_for('session_summary', sid=r.id) }}">View</a></td></tr>{% endfor %}
+    </table></div>
+    {% else %}<p class="empty">No sessions yet. <a href="{{ url_for('session_start') }}">Take attendance</a> to start one.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='chart.umd.js') }}"></script>
+<script>
+let charts = [];
+async function draw() {
+  charts.forEach(c => c.destroy()); charts = [];
+  const css = getComputedStyle(document.documentElement);
+  const muted = css.getPropertyValue("--muted").trim(), line = css.getPropertyValue("--line").trim();
+  const green = css.getPropertyValue("--present").trim(), amber = css.getPropertyValue("--late").trim(),
+        red = css.getPropertyValue("--absent").trim();
+  Chart.defaults.color = muted; Chart.defaults.font.family = "Segoe UI, system-ui, sans-serif";
+  const d = await (await fetch("{{ url_for('api_analytics') }}")).json();
+  const scales = { x: { grid: { display: false } }, y: { min: 0, max: 100, grid: { color: line }, ticks: { callback: v => v + "%" } } };
+  function show(id, has) { document.getElementById("c-" + id).parentElement.hidden = !has; document.getElementById("e-" + id).hidden = has; }
+
+  show("trend", d.trend.length > 0);
+  if (d.trend.length) charts.push(new Chart("c-trend", { type: "line",
+    data: { labels: d.trend.map(t => t.label), datasets: [
+      { label: "Attended", data: d.trend.map(t => t.rate), borderColor: green, backgroundColor: green, tension: .25, pointRadius: 4 },
+      { label: "Minimum", data: d.trend.map(() => d.threshold), borderColor: red, borderDash: [6, 5], pointRadius: 0 }] },
+    options: { maintainAspectRatio: false, scales, plugins: { legend: { position: "bottom" } } } }));
+
+  const tot = d.status.Present + d.status.Late + d.status.Absent;
+  show("status", tot > 0);
+  if (tot) charts.push(new Chart("c-status", { type: "doughnut",
+    data: { labels: ["Present", "Late", "Absent"], datasets: [{ data: [d.status.Present, d.status.Late, d.status.Absent],
+      backgroundColor: [green, amber, red], borderWidth: 0 }] },
+    options: { maintainAspectRatio: false, cutout: "62%", plugins: { legend: { position: "bottom" } } } }));
+
+  show("class", d.class_avg.length > 0);
+  if (d.class_avg.length) charts.push(new Chart("c-class", { type: "bar",
+    data: { labels: d.class_avg.map(c => c.class_name), datasets: [{ data: d.class_avg.map(c => c.avg),
+      backgroundColor: d.class_avg.map(c => c.avg < d.threshold ? red : green), borderRadius: 4 }] },
+    options: { maintainAspectRatio: false, scales, plugins: { legend: { display: false } } } }));
+
+  show("day", d.weekday.length > 0);
+  if (d.weekday.length) charts.push(new Chart("c-day", { type: "bar",
+    data: { labels: d.weekday.map(w => w.day), datasets: [{ data: d.weekday.map(w => w.absent_rate), backgroundColor: amber, borderRadius: 4 }] },
+    options: { maintainAspectRatio: false, scales, plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: c => c.parsed.y + "% absent" } } } } }));
+}
+draw(); document.addEventListener("themechange", draw);
+</script>
+{% endblock %}
